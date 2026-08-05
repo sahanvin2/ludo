@@ -30,6 +30,28 @@ To run it on Windows with the .NET 8 SDK installed:
 dotnet run --project LudoGame.Gui/LudoGame.Gui.csproj
 ```
 
+If you have the repo-local SDK checked out in the project folder, you can also run it with:
+
+```bash
+.\dotnet\dotnet.exe run --project .\LudoGame.Gui\LudoGame.Gui.csproj
+```
+
+If the GUI is already open, close it before rebuilding so the output files are not locked.
+
+Quick run steps:
+
+```bash
+cd "d:\Test 2\Wenura\CleanCodin1-main\CleanCodin1-main"
+.\Run-Game.bat
+```
+
+Build and test commands:
+
+```bash
+.\dotnet\dotnet.exe build .\LudoGame.Gui\LudoGame.Gui.csproj
+.\dotnet\dotnet.exe test .\LudoGame.Tests\LudoGame.Tests.csproj --logger "console;verbosity=detailed"
+```
+
 ## What each file does
 
 ### `Program.cs`
