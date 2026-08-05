@@ -34,7 +34,7 @@ namespace LudoGame.Gui
             Text = "LUDO-T Arena";
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(1280, 820);
-            BackColor = System.Drawing.Color.FromArgb(15, 17, 24);
+            BackColor = System.Drawing.Color.FromArgb(12, 14, 20);
             Font = new Font("Segoe UI", 9f);
 
             InitializeLayout();
@@ -431,10 +431,10 @@ namespace LudoGame.Gui
 
         private System.Drawing.Color GetUiColor(GameColor color) => color switch
         {
-            GameColor.Red => System.Drawing.Color.FromArgb(240, 92, 106),
-            GameColor.Green => System.Drawing.Color.FromArgb(96, 207, 121),
-            GameColor.Yellow => System.Drawing.Color.FromArgb(245, 210, 96),
-            GameColor.Blue => System.Drawing.Color.FromArgb(107, 155, 255),
+            GameColor.Red => System.Drawing.Color.FromArgb(255, 75, 92),
+            GameColor.Green => System.Drawing.Color.FromArgb(52, 211, 153),
+            GameColor.Yellow => System.Drawing.Color.FromArgb(251, 191, 36),
+            GameColor.Blue => System.Drawing.Color.FromArgb(96, 165, 250),
             _ => System.Drawing.Color.WhiteSmoke
         };
     }

@@ -12,10 +12,10 @@ namespace LudoGame.Gui
     {
         private readonly Dictionary<GameColor, System.Drawing.Color> _colors = new()
         {
-            [GameColor.Red] = System.Drawing.Color.FromArgb(220, 65, 79),
-            [GameColor.Green] = System.Drawing.Color.FromArgb(62, 168, 90),
-            [GameColor.Yellow] = System.Drawing.Color.FromArgb(240, 188, 72),
-            [GameColor.Blue] = System.Drawing.Color.FromArgb(74, 124, 246)
+            [GameColor.Red] = System.Drawing.Color.FromArgb(255, 75, 92),
+            [GameColor.Green] = System.Drawing.Color.FromArgb(52, 211, 153),
+            [GameColor.Yellow] = System.Drawing.Color.FromArgb(251, 191, 36),
+            [GameColor.Blue] = System.Drawing.Color.FromArgb(96, 165, 250)
         };
 
         public BoardCanvas()
@@ -210,21 +210,24 @@ namespace LudoGame.Gui
 
         private void DrawPieceMarker(Graphics g, PointF center, PieceViewModel piece)
         {
-            const float markerSize = 20f;
+            const float markerSize = 22f;
             var rect = new RectangleF(center.X - markerSize / 2f, center.Y - markerSize / 2f, markerSize, markerSize);
             var color = _colors[piece.Color];
-            using var fill = new SolidBrush(color);
-            using var border = new Pen(System.Drawing.Color.WhiteSmoke, 1.2f);
+            var highlightColor = System.Drawing.Color.FromArgb(Math.Min(255, color.R + 40), Math.Min(255, color.G + 40), Math.Min(255, color.B + 40));
+            var shadowColor = System.Drawing.Color.FromArgb(Math.Max(0, color.R - 40), Math.Max(0, color.G - 40), Math.Max(0, color.B - 40));
+            
+            using var fill = new LinearGradientBrush(rect, highlightColor, shadowColor, LinearGradientMode.ForwardDiagonal);
+            using var border = new Pen(System.Drawing.Color.FromArgb(200, 255, 255, 255), 1.5f);
             using var font = new Font("Segoe UI", 7.4f, FontStyle.Bold);
             using var textBrush = new SolidBrush(System.Drawing.Color.White);
             var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
 
             // Drop shadow
-            var shadowRect = new RectangleF(rect.X + 2, rect.Y + 2, rect.Width, rect.Height);
-            using var shadowBrush = new SolidBrush(System.Drawing.Color.FromArgb(90, 0, 0, 0));
+            var shadowRect = new RectangleF(rect.X + 3, rect.Y + 3, rect.Width, rect.Height);
+            using var shadowBrush = new SolidBrush(System.Drawing.Color.FromArgb(110, 0, 0, 0));
             g.FillEllipse(shadowBrush, shadowRect);
 
-            // Piece body
+            // Piece body with gradient
             g.FillEllipse(fill, rect);
             g.DrawEllipse(border, rect);
             g.DrawString(piece.Name, font, textBrush, rect, format);
