@@ -65,45 +65,65 @@ namespace LudoGame.Gui
 
         private Control BuildHeader()
         {
-            var panel = new Panel { Dock = DockStyle.Fill, BackColor = System.Drawing.Color.FromArgb(23, 27, 37) };
-            panel.Paint += (_, e) =>
+            var headerGrid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                BackColor = System.Drawing.Color.FromArgb(23, 27, 37)
+            };
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360f));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 510f));
+
+            headerGrid.Paint += (_, e) =>
             {
                 using var pen = new Pen(System.Drawing.Color.FromArgb(58, 66, 84), 1.5f);
-                e.Graphics.DrawRectangle(pen, 0, 0, panel.Width - 1, panel.Height - 1);
+                e.Graphics.DrawRectangle(pen, 0, 0, headerGrid.Width - 1, headerGrid.Height - 1);
             };
 
+            // Title Box
+            var titleBox = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(12, 10, 0, 0) };
             var title = new Label
             {
                 AutoSize = true,
                 Text = "LUDO-T Arena",
                 ForeColor = System.Drawing.Color.WhiteSmoke,
-                Font = new Font("Segoe UI Semibold", 21f, FontStyle.Bold),
-                Location = new Point(18, 14)
+                Font = new Font("Segoe UI Semibold", 21f, FontStyle.Bold)
             };
-
             var subtitle = new Label
             {
                 AutoSize = true,
                 Text = "Live simulation dashboard built on the existing C# game engine.",
                 ForeColor = System.Drawing.Color.FromArgb(190, 200, 220),
-                Location = new Point(20, 50)
+                Margin = new Padding(3, -2, 0, 0)
             };
+            titleBox.Controls.Add(title);
+            titleBox.Controls.Add(subtitle);
+
+            // Status Box
+            var statusBox = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, Padding = new Padding(0, 18, 0, 0) };
+            statusBox.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+            statusBox.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
 
             _statusLabel.AutoSize = true;
             _statusLabel.ForeColor = System.Drawing.Color.FromArgb(224, 232, 244);
-            _statusLabel.Location = new Point(350, 18);
             _statusLabel.Font = new Font("Segoe UI Semibold", 10f, FontStyle.Bold);
 
             _sectionLabel.AutoSize = true;
             _sectionLabel.ForeColor = System.Drawing.Color.FromArgb(180, 194, 215);
-            _sectionLabel.Location = new Point(350, 44);
 
+            statusBox.Controls.Add(_statusLabel, 0, 0);
+            statusBox.Controls.Add(_sectionLabel, 0, 1);
+
+            // Controls Box
+            var controlsBox = new Panel { Dock = DockStyle.Fill };
             var speedCaption = new Label
             {
                 AutoSize = true,
                 Text = "Speed",
                 ForeColor = System.Drawing.Color.FromArgb(200, 210, 228),
-                Location = new Point(590, 14)
+                Location = new Point(0, 14)
             };
 
             _speedSlider.Minimum = 0;
@@ -112,8 +132,8 @@ namespace LudoGame.Gui
             _speedSlider.TickFrequency = 10;
             _speedSlider.SmallChange = 3;
             _speedSlider.LargeChange = 12;
-            _speedSlider.Width = 220;
-            _speedSlider.Location = new Point(590, 38);
+            _speedSlider.Width = 190;
+            _speedSlider.Location = new Point(-6, 38);
             _speedSlider.Scroll += (_, _) => _logger.DelayMilliseconds = _speedSlider.Value;
 
             _startButton.Text = "Start simulation";
@@ -121,9 +141,9 @@ namespace LudoGame.Gui
             _startButton.ForeColor = System.Drawing.Color.White;
             _startButton.FlatStyle = FlatStyle.Flat;
             _startButton.FlatAppearance.BorderSize = 0;
-            _startButton.Width = 150;
+            _startButton.Width = 140;
             _startButton.Height = 36;
-            _startButton.Location = new Point(840, 18);
+            _startButton.Location = new Point(200, 14);
             _startButton.Click += async (_, _) => await StartGameAsync();
 
             _resetButton.Text = "Reset view";
@@ -131,26 +151,27 @@ namespace LudoGame.Gui
             _resetButton.ForeColor = System.Drawing.Color.White;
             _resetButton.FlatStyle = FlatStyle.Flat;
             _resetButton.FlatAppearance.BorderSize = 0;
-            _resetButton.Width = 120;
+            _resetButton.Width = 110;
             _resetButton.Height = 36;
-            _resetButton.Location = new Point(1000, 18);
+            _resetButton.Location = new Point(350, 14);
             _resetButton.Click += (_, _) => ResetView();
 
             _mysteryLabel.AutoSize = true;
             _mysteryLabel.ForeColor = System.Drawing.Color.FromArgb(185, 174, 255);
-            _mysteryLabel.Location = new Point(840, 60);
+            _mysteryLabel.Location = new Point(200, 56);
             _mysteryLabel.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
 
-            panel.Controls.Add(title);
-            panel.Controls.Add(subtitle);
-            panel.Controls.Add(_statusLabel);
-            panel.Controls.Add(_sectionLabel);
-            panel.Controls.Add(speedCaption);
-            panel.Controls.Add(_speedSlider);
-            panel.Controls.Add(_startButton);
-            panel.Controls.Add(_resetButton);
-            panel.Controls.Add(_mysteryLabel);
-            return panel;
+            controlsBox.Controls.Add(speedCaption);
+            controlsBox.Controls.Add(_speedSlider);
+            controlsBox.Controls.Add(_startButton);
+            controlsBox.Controls.Add(_resetButton);
+            controlsBox.Controls.Add(_mysteryLabel);
+
+            headerGrid.Controls.Add(titleBox, 0, 0);
+            headerGrid.Controls.Add(statusBox, 1, 0);
+            headerGrid.Controls.Add(controlsBox, 2, 0);
+
+            return headerGrid;
         }
 
         private Control BuildBody()
@@ -377,12 +398,12 @@ namespace LudoGame.Gui
 
         private void OnSnapshotChanged(GameSnapshot snapshot)
         {
-            if (IsDisposed)
+            if (IsDisposed || !IsHandleCreated)
                 return;
 
             if (InvokeRequired)
             {
-                BeginInvoke(new Action(() => ApplySnapshot(snapshot)));
+                Invoke(new Action(() => ApplySnapshot(snapshot)));
                 return;
             }
 
@@ -424,6 +445,24 @@ namespace LudoGame.Gui
                 }
 
                 _lastLogLineCount = snapshot.LogLines.Count;
+                _logBox.SelectionStart = _logBox.TextLength;
+                _logBox.ScrollToCaret();
+            }
+            else if (snapshot.LogLines.Count < _lastLogLineCount)
+            {
+                _logBox.Clear();
+                foreach (var line in snapshot.LogLines)
+                {
+                    _logBox.AppendText(line + Environment.NewLine);
+                }
+                _lastLogLineCount = snapshot.LogLines.Count;
+                _logBox.SelectionStart = _logBox.TextLength;
+                _logBox.ScrollToCaret();
+            }
+            else if (snapshot.LogLines.Count > 0 && _lastLogLineCount == snapshot.LogLines.Count && snapshot.LogLines.Count % 500 == 0)
+            {
+                // Edge case where truncation happened perfectly. 
+                _logBox.Text = string.Join(Environment.NewLine, snapshot.LogLines) + Environment.NewLine;
                 _logBox.SelectionStart = _logBox.TextLength;
                 _logBox.ScrollToCaret();
             }
