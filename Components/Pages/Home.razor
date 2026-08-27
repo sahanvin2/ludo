@@ -1,0 +1,474 @@
+@page "/"
+@rendermode InteractiveServer
+@using LudoT_Arena.Models
+@using System.Threading
+@implements IDisposable
+
+<PageTitle>LUDO-T Arena</PageTitle>
+
+<div class="arena-container">
+    <div class="header">
+        <div class="title-section">
+            <h1>LUDO-T Arena</h1>
+            <p>Live simulation dashboard built on the existing C# engine</p>
+        </div>
+        
+        <div class="status-section">
+            <div class="mystery-status">
+                @if (engine?.MysteryCell.CurrentLocation != null)
+                {
+                    <strong>Mystery cell at @engine.MysteryCell.CurrentLocation, @engine.MysteryCell.RoundsUntilDisappear rounds remaining</strong>
+                }
+                else
+                {
+                    <span>Mystery cell: waiting for the first spawn</span>
+                }
+            </div>
+            
+            <div class="controls">
+                <div class="speed-control">
+                    <label>Speed</label>
+                    <input type="range" min="10" max="1000" @bind="simulationDelay" @bind:event="oninput" />
+                </div>
+                
+                <button class="btn btn-primary" @onclick="ToggleSimulation" disabled="@isSimulationComplete">
+                    @(isSimulationRunning ? "Pause simulation" : "Start simulation")
+                </button>
+                <button class="btn btn-secondary" @onclick="ResetSimulation">Reset view</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="board-section">
+            <div class="ludo-board">
+                @for (int row = 0; row < 15; row++)
+                {
+                    for (int col = 0; col < 15; col++)
+                    {
+                        var cellClass = GetCellClass(row, col);
+                        <div class="@cellClass" data-row="@row" data-col="@col">
+                            @if (IsBaseCenter(row, col, out Color baseColor))
+                            {
+                                <div class="base-container">
+                                    <div class="base-spots-bg">
+                                        <div class="base-spot @(baseColor.ToString().ToLower())-spot"></div>
+                                        <div class="base-spot @(baseColor.ToString().ToLower())-spot"></div>
+                                        <div class="base-spot @(baseColor.ToString().ToLower())-spot"></div>
+                                        <div class="base-spot @(baseColor.ToString().ToLower())-spot"></div>
+                                    </div>
+                                    <div class="base-pieces-wrapper">
+                                        @foreach (var piece in GetPiecesInBase(baseColor))
+                                        {
+                                            <div class="piece @piece.Color.ToString().ToLower()-piece">@piece.Id</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            
+                            @if (IsHomeCenter(row, col))
+                            {
+                                <div class="home-container">
+                                    <div class="home-triangle green-home">
+                                        @foreach (var piece in GetPiecesInHome(Color.Green)) { <div class="piece-mini">@piece.Id</div> }
+                                    </div>
+                                    <div class="home-triangle yellow-home">
+                                        @foreach (var piece in GetPiecesInHome(Color.Yellow)) { <div class="piece-mini">@piece.Id</div> }
+                                    </div>
+                                    <div class="home-triangle blue-home">
+                                        @foreach (var piece in GetPiecesInHome(Color.Blue)) { <div class="piece-mini">@piece.Id</div> }
+                                    </div>
+                                    <div class="home-triangle red-home">
+                                        @foreach (var piece in GetPiecesInHome(Color.Red)) { <div class="piece-mini">@piece.Id</div> }
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                var piecesInCell = GetPiecesAt(row, col);
+                                if (piecesInCell.Any())
+                                {
+                                    <div class="cell-pieces-container @(piecesInCell.Count > 1 ? "multiple-pieces" : "")">
+                                        @if (piecesInCell.Count == 1)
+                                        {
+                                            var p = piecesInCell.First();
+                                            <div class="piece @p.Color.ToString().ToLower()-piece">@p.Id</div>
+                                        }
+                                        else
+                                        {
+                                            var p = piecesInCell.First();
+                                            <div class="piece block-piece @p.Color.ToString().ToLower()-piece">@piecesInCell.Count</div>
+                                        }
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+        
+        <div class="side-panel">
+            <div class="stats-grid">
+                @if (players != null)
+                {
+                    @foreach (var player in players)
+                    {
+                        <div class="stat-card" style="border-left: 4px solid @GetColorHex(player.Color)">
+                            <h4 style="color: @GetColorHex(player.Color)">@player.Color</h4>
+                            <div>Board: @player.PiecesOnBoard()</div>
+                            <div>Base: @player.PiecesInBase()</div>
+                            <div>Home: @player.PiecesInHome()</div>
+                            <div style="color: #718096; font-size: 0.85em; margin-top: 5px;">
+                                @(player.PiecesInHome() == 4 ? "Winner!" : "Placement: pending")
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="log-section">
+                <h4>Live log</h4>
+                <div class="log-container" id="logContainer">
+                    @foreach (var log in logs)
+                    {
+                        <div class="log-line">@log</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private GameEngine? engine;
+    private List<Player>? players;
+    private Random rand = new Random();
+    
+    private List<string> logs = new List<string>();
+    private bool isSimulationRunning = false;
+    private bool isSimulationComplete = false;
+    private int simulationDelay = 100; // ms
+    private CancellationTokenSource? cts;
+    
+    private readonly (int r, int c)[] PathCoords = new (int, int)[] 
+    {
+        (0, 7), (0, 8), (1, 8), (2, 8), (3, 8), (4, 8), (5, 8),
+        (6, 9), (6, 10), (6, 11), (6, 12), (6, 13), (6, 14),
+        (7, 14), (8, 14), (8, 13), (8, 12), (8, 11), (8, 10), (8, 9),
+        (9, 8), (10, 8), (11, 8), (12, 8), (13, 8), (14, 8),
+        (14, 7), (14, 6), (13, 6), (12, 6), (11, 6), (10, 6), (9, 6),
+        (8, 5), (8, 4), (8, 3), (8, 2), (8, 1), (8, 0),
+        (7, 0), (6, 0), (6, 1), (6, 2), (6, 3), (6, 4), (6, 5),
+        (5, 6), (4, 6), (3, 6), (2, 6), (1, 6), (0, 6)
+    };
+    
+    private Dictionary<Color, Dictionary<int, (int, int)>> HomeStraights = new()
+    {
+        { Color.Yellow, new Dictionary<int, (int, int)> { { 0, (1, 7) }, { 1, (2, 7) }, { 2, (3, 7) }, { 3, (4, 7) }, { 4, (5, 7) } } },
+        { Color.Blue, new Dictionary<int, (int, int)> { { 0, (7, 13) }, { 1, (7, 12) }, { 2, (7, 11) }, { 3, (7, 10) }, { 4, (7, 9) } } },
+        { Color.Red, new Dictionary<int, (int, int)> { { 0, (13, 7) }, { 1, (12, 7) }, { 2, (11, 7) }, { 3, (10, 7) }, { 4, (9, 7) } } },
+        { Color.Green, new Dictionary<int, (int, int)> { { 0, (7, 1) }, { 1, (7, 2) }, { 2, (7, 3) }, { 3, (7, 4) }, { 4, (7, 5) } } }
+    };
+    
+    protected override void OnInitialized()
+    {
+        Console.SetOut(new LogWriter(this));
+        ResetSimulation();
+    }
+    
+    private class LogWriter : System.IO.TextWriter
+    {
+        private readonly Home _home;
+        public LogWriter(Home home) { _home = home; }
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+        
+        // Accumulate characters until newline to avoid breaking up Write calls
+        private string currentLine = "";
+        
+        public override void Write(char value)
+        {
+            if (value == '\n')
+            {
+                _home.Log(currentLine.TrimEnd('\r'));
+                currentLine = "";
+            }
+            else
+            {
+                currentLine += value;
+            }
+        }
+        
+        public override void Write(string? value)
+        {
+            if (value == null) return;
+            foreach (char c in value) Write(c);
+        }
+        
+        public override void WriteLine(string? value)
+        {
+            if (value != null)
+            {
+                _home.Log(currentLine + value);
+                currentLine = "";
+            }
+            else if (currentLine.Length > 0)
+            {
+                _home.Log(currentLine);
+                currentLine = "";
+            }
+        }
+    }
+    
+    private void ResetSimulation()
+    {
+        isSimulationRunning = false;
+        isSimulationComplete = false;
+        cts?.Cancel();
+        logs.Clear();
+        
+        var red = new RedPlayer(Color.Red);
+        var green = new GreenPlayer(Color.Green);
+        var yellow = new YellowPlayer(Color.Yellow);
+        var blue = new BluePlayer(Color.Blue);
+        
+        players = new List<Player> { red, green, yellow, blue };
+        engine = new GameEngine(players);
+        
+        engine = new GameEngine(players);
+        
+        Log("Simulation reset and ready.");
+    }
+
+    private void Log(string msg)
+    {
+        logs.Add(msg);
+        if(logs.Count > 200) logs.RemoveAt(0);
+        InvokeAsync(StateHasChanged);
+    }
+    
+    private async Task ToggleSimulation()
+    {
+        if (isSimulationRunning)
+        {
+            isSimulationRunning = false;
+            cts?.Cancel();
+        }
+        else
+        {
+            isSimulationRunning = true;
+            cts = new CancellationTokenSource();
+            await RunSimulationLoop(cts.Token);
+        }
+    }
+    
+    private async Task RunSimulationLoop(CancellationToken token)
+    {
+        if (engine == null || players == null) return;
+        
+        if (logs.Count <= 1)
+        {
+            foreach (var p in players)
+            {
+                string colorName = p.Color.ToString().ToLower();
+                string pieceNames = string.Join(", ", p.Pieces.Select(piece => piece.Id).Take(3)) + ", and " + p.Pieces.Last().Id;
+                Log($"The {colorName} player has four (04) pieces named {pieceNames}.");
+            }
+            
+            Player? startingPlayer = players[rand.Next(4)];
+            Log($"[{startingPlayer.Color}] player has the highest roll and will begin the game.");
+            
+            int startIndex = players.IndexOf(startingPlayer);
+            var playOrder = new List<Player>();
+            for (int i = 0; i < 4; i++) playOrder.Add(players[(startIndex + i) % 4]);
+            
+            Log($"The order of a single round is [{playOrder[0].Color}], [{playOrder[1].Color}], [{playOrder[2].Color}], and [{playOrder[3].Color}].");
+            players = playOrder;
+        }
+
+        int currentRound = 1;
+
+        try
+        {
+            while (!isSimulationComplete && !token.IsCancellationRequested)
+            {
+                foreach (var p in players)
+                {
+                    if (isSimulationComplete || token.IsCancellationRequested) break;
+                    
+                    int bonusRolls = 0;
+                    int consecutiveSixes = 0;
+                    
+                    do
+                    {
+                        if (token.IsCancellationRequested) break;
+                        
+                        int roll = rand.Next(1, 7);
+                        Log($"[{p.Color}] player rolled {roll}.");
+
+                        if (roll == 6) consecutiveSixes++;
+                        else consecutiveSixes = 0;
+
+                        if (consecutiveSixes == 3) break;
+                        
+                        int preCaptures = p.Pieces.Sum(piece => piece.CapturedPiecesCount);
+
+                        bool moved = p.PlayTurn(roll, engine);
+                        
+                        if (!moved)
+                        {
+                            Log($"[{p.Color}] does not have other pieces in the board to move instead of the blocked piece. Ignoring the throw and moving on to the next player.");
+                        }
+                        
+                        await InvokeAsync(StateHasChanged);
+                        await Task.Delay(1010 - simulationDelay, token);
+
+                        if (p.PiecesInHome() == 4)
+                        {
+                            isSimulationComplete = true;
+                            Log($"[{p.Color}] player wins!!!");
+                            break;
+                        }
+
+                        if (roll == 6) bonusRolls++;
+                        int postCaptures = p.Pieces.Sum(piece => piece.CapturedPiecesCount);
+                        if (postCaptures > preCaptures) bonusRolls++;
+                        
+                        if (bonusRolls > 0) bonusRolls--;
+                        else break;
+                        
+                    } while (true);
+                }
+
+                if (!isSimulationComplete && !token.IsCancellationRequested)
+                {
+                    foreach (var p in players)
+                    {
+                        Log($"[{p.Color}] player now has {p.PiecesOnBoard()}/4 on pieces on the board and {p.PiecesInBase()}/4 pieces on the base.");
+                    }
+                    
+                    engine.MysteryCell.Update(currentRound, engine.AllPieces);
+                    if (engine.MysteryCell.CurrentLocation.HasValue)
+                    {
+                        Log($"The mystery cell is at {engine.MysteryCell.CurrentLocation.Value} and will be at that location for the next {engine.MysteryCell.RoundsUntilDisappear} values.");
+                    }
+                }
+                currentRound++;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+    
+    private string GetCellClass(int row, int col)
+    {
+        string classes = "cell";
+        
+        // Base backgrounds
+        if (row < 6 && col < 6) return classes + " base-bg green-bg";
+        if (row < 6 && col > 8) return classes + " base-bg yellow-bg";
+        if (row > 8 && col < 6) return classes + " base-bg red-bg";
+        if (row > 8 && col > 8) return classes + " base-bg blue-bg";
+        
+        // Center home
+        if (row >= 6 && row <= 8 && col >= 6 && col <= 8) return classes + " home-center-bg";
+        
+        // Path logic
+        int pathIndex = Array.IndexOf(PathCoords, (row, col));
+        if (pathIndex != -1)
+        {
+            classes += " path-cell";
+            if (pathIndex == Board.GetStartCellX(Color.Yellow)) classes += " yellow-start";
+            if (pathIndex == Board.GetStartCellX(Color.Blue)) classes += " blue-start";
+            if (pathIndex == Board.GetStartCellX(Color.Red)) classes += " red-start";
+            if (pathIndex == Board.GetStartCellX(Color.Green)) classes += " green-start";
+            
+            if (pathIndex == Board.GetApproachCell(Color.Yellow)) classes += " yellow-approach";
+            if (pathIndex == Board.GetApproachCell(Color.Blue)) classes += " blue-approach";
+            if (pathIndex == Board.GetApproachCell(Color.Red)) classes += " red-approach";
+            if (pathIndex == Board.GetApproachCell(Color.Green)) classes += " green-approach";
+            
+            if (engine?.MysteryCell.CurrentLocation == pathIndex) classes += " mystery-cell";
+        }
+        
+        // Home straights
+        if (col == 7 && row >= 1 && row <= 5) classes += " home-straight yellow-straight";
+        if (row == 7 && col >= 9 && col <= 13) classes += " home-straight blue-straight";
+        if (col == 7 && row >= 9 && row <= 13) classes += " home-straight red-straight";
+        if (row == 7 && col >= 1 && col <= 5) classes += " home-straight green-straight";
+
+        return classes;
+    }
+    
+    private bool IsBaseCenter(int row, int col, out Color baseColor)
+    {
+        baseColor = Color.Green;
+        if (row == 2 && col == 2) { baseColor = Color.Green; return true; }
+        if (row == 2 && col == 11) { baseColor = Color.Yellow; return true; }
+        if (row == 11 && col == 2) { baseColor = Color.Red; return true; }
+        if (row == 11 && col == 11) { baseColor = Color.Blue; return true; }
+        return false;
+    }
+    
+    private bool IsHomeCenter(int row, int col)
+    {
+        return (row == 7 && col == 7);
+    }
+    
+    private List<Piece> GetPiecesInBase(Color color)
+    {
+        if (engine == null) return new List<Piece>();
+        return engine.AllPieces.Where(p => p.Color == color && p.State == PieceState.Base).ToList();
+    }
+    
+    private List<Piece> GetPiecesInHome(Color color)
+    {
+        if (engine == null) return new List<Piece>();
+        return engine.AllPieces.Where(p => p.Color == color && p.State == PieceState.Home).ToList();
+    }
+    
+    private List<Piece> GetPiecesAt(int row, int col)
+    {
+        if (engine == null) return new List<Piece>();
+        
+        int pathIndex = Array.IndexOf(PathCoords, (row, col));
+        if (pathIndex != -1)
+        {
+            return engine.AllPieces.Where(p => p.State == PieceState.StandardPath && p.Position == pathIndex).ToList();
+        }
+        
+        foreach (var color in HomeStraights.Keys)
+        {
+            var straight = HomeStraights[color];
+            foreach (var pos in straight.Keys)
+            {
+                if (straight[pos] == (row, col))
+                {
+                    return engine.AllPieces.Where(p => p.Color == color && p.State == PieceState.HomeStraight && p.Position == pos).ToList();
+                }
+            }
+        }
+        
+        return new List<Piece>();
+    }
+    
+    private string GetColorHex(Color c)
+    {
+        return c switch
+        {
+            Color.Red => "#f56565",
+            Color.Green => "#48bb78",
+            Color.Yellow => "#ecc94b",
+            Color.Blue => "#4299e1",
+            _ => "#ffffff"
+        };
+    }
+    
+    public void Dispose()
+    {
+        cts?.Cancel();
+        cts?.Dispose();
+    }
+}
