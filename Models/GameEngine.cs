@@ -279,9 +279,7 @@ public class GameEngine
             GameEngine.Log($"[{player.Color}] player moves piece {move.Piece.Id} to the starting point.");
             GameEngine.Log($"[{player.Color}] player now has {player.PiecesOnBoard() + 1}/4 on pieces on the board and {player.PiecesInBase() - 1}/4 pieces on the base.");
             
-            // Coin toss for direction (Rule T-1)
-            if (rand.Next(2) == 0) move.Piece.Direction = Direction.Clockwise;
-            else move.Piece.Direction = Direction.CounterClockwise;
+            // Removed coin toss to ensure standard Ludo clockwise movement
         }
         else if (move.MovesToBaseFromBriefing)
         {
