@@ -392,7 +392,7 @@ namespace LudoGame
                 return (best.attacker, false);
             }
 
-            if (diceValue == 6 && StandardPathCount() == 0)
+            if (diceValue == 6)
             {
                 if (!MovementEngine.CanCaptureWithRollOnPath(this, 6, board, players))
                 {
@@ -498,13 +498,19 @@ namespace LudoGame
             var blockGroups = Pieces.Where(p => p.IsInStandardPath())
                 .GroupBy(p => p.Position).Where(g => g.Count() >= 2).ToList();
 
-            bool othersCanMove = Pieces
-                .Where(p => p.IsInStandardPath() && !blockGroups.Any(g => g.Key == p.Position))
-                .Any(p => MovementEngine.Simulate(this, p, dice, board, players).CanMove);
-            if (othersCanMove) return null;
-
             foreach (var grp in blockGroups)
             {
+                var blockPiece = grp.First();
+                int blockDist = GameRules.DistanceFromHome(blockPiece);
+
+                bool piecesInFrontCanMove = Pieces
+                    .Where(p => (p.IsInStandardPath() || p.IsInHomeStraight()) && !blockGroups.Any(g => g.Key == p.Position))
+                    .Where(p => GameRules.DistanceFromHome(p) < blockDist)
+                    .Any(p => MovementEngine.Simulate(this, p, dice, board, players).CanMove);
+
+                if (piecesInFrontCanMove)
+                    continue;
+
                 foreach (var piece in grp)
                 {
                     var alone = MovementEngine.Simulate(this, piece, dice, board, players);
@@ -566,7 +572,10 @@ namespace LudoGame
                 foreach (var piece in ordered)
                 {
                     if (piece.IsAtBase())
+                    {
+                        _nextPieceNumber = piece.Number % 4 + 1;
                         return (piece, true);
+                    }
                 }
             }
 
@@ -574,24 +583,37 @@ namespace LudoGame
             {
                 if (piece.IsAtBase() || piece.IsAtHome()) continue;
                 if (!MovementEngine.Simulate(this, piece, diceValue, board, players).CanMove) continue;
-                if (!piece.IsInStandardPath()) return (piece, false);
+                if (!piece.IsInStandardPath()) 
+                {
+                    _nextPieceNumber = piece.Number % 4 + 1;
+                    return (piece, false);
+                }
 
                 int movement = GameRules.GetModifiedMovement(piece, diceValue);
                 int target = board.CalculateNewPosition(piece.Position, movement, piece.MovementDirection);
                 if (piece.MovementDirection == Direction.CounterClockwise && board.IsMysteryCell(target))
+                {
+                    _nextPieceNumber = piece.Number % 4 + 1;
                     return (piece, false);
+                }
             }
 
             foreach (var piece in ordered)
             {
                 if (piece.IsAtBase() || piece.IsAtHome()) continue;
                 if (!MovementEngine.Simulate(this, piece, diceValue, board, players).CanMove) continue;
-                if (!piece.IsInStandardPath()) return (piece, false);
+                if (!piece.IsInStandardPath())
+                {
+                    _nextPieceNumber = piece.Number % 4 + 1;
+                    return (piece, false);
+                }
 
                 int movement = GameRules.GetModifiedMovement(piece, diceValue);
                 int target = board.CalculateNewPosition(piece.Position, movement, piece.MovementDirection);
                 if (piece.MovementDirection == Direction.Clockwise && board.IsMysteryCell(target))
                     continue;
+                
+                _nextPieceNumber = piece.Number % 4 + 1;
                 return (piece, false);
             }
 
@@ -601,10 +623,11 @@ namespace LudoGame
         private List<Piece> GetCyclicPieces()
         {
             var ordered = new List<Piece>();
+            int current = _nextPieceNumber;
             for (int attempt = 0; attempt < 4; attempt++)
             {
-                ordered.Add(Pieces.First(p => p.Number == _nextPieceNumber));
-                _nextPieceNumber = _nextPieceNumber % 4 + 1;
+                ordered.Add(Pieces.First(p => p.Number == current));
+                current = current % 4 + 1;
             }
             return ordered;
         }

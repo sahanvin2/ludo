@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using GameColor = LudoGame.Color;
 
-namespace LudoGame.Gui
+namespace LudoGame
 {
-    internal enum PieceZone
+    public enum PieceZone
     {
         Base,
         Ring,
@@ -13,7 +13,7 @@ namespace LudoGame.Gui
         Home
     }
 
-    internal sealed class PieceViewModel
+    public sealed class PieceViewModel
     {
         public PieceViewModel(string name, GameColor color)
         {
@@ -72,7 +72,7 @@ namespace LudoGame.Gui
         }
     }
 
-    internal sealed class PlayerViewModel
+    public sealed class PlayerViewModel
     {
         private readonly List<PieceViewModel> _pieces = new();
 
@@ -123,7 +123,7 @@ namespace LudoGame.Gui
         }
     }
 
-    internal sealed class GameSnapshot
+    public sealed class GameSnapshot
     {
         public Dictionary<GameColor, PlayerViewModel> Players { get; } = new();
         public List<string> LogLines { get; } = new();

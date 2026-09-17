@@ -3,6 +3,8 @@
   <ItemGroup>
     <Compile Remove="LudoGame.Tests/**" />
     <Compile Remove="LudoGame.Gui/**" />
+    <Compile Remove="LudoGame.Server/**" />
+    <Compile Remove="LudoGame.Database/**" />
   </ItemGroup>
 
   <PropertyGroup>

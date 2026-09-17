@@ -5,9 +5,9 @@ using System.Threading;
 using LudoGame;
 using GameColor = LudoGame.Color;
 
-namespace LudoGame.Gui
+namespace LudoGame
 {
-    internal sealed class GuiGameLogger : IGameLogger
+    public sealed class SnapshotGameLogger : IGameLogger
     {
         private readonly object _sync = new();
         private readonly GameSnapshot _snapshot = new();

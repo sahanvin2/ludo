@@ -63,8 +63,7 @@ namespace LudoGame
             }
 
             DetermineFirstPlayer();
-            _sections.WaitForContinue();
-            RunGame();
+            _currentTurnIndex = 0;
         }
 
         private void DetermineFirstPlayer()
@@ -87,46 +86,49 @@ namespace LudoGame
             _logger.LogRoundOrder(FormatPlayOrder(_playOrder));
         }
 
-        private void RunGame()
+        public bool PlayNextTurn()
         {
-            while (_finishCount < 4)
+            if (_finishCount >= 4 || _round >= MaxGameRounds)
+                return false;
+
+            if (_playOrder.Count == 0)
+                DetermineFirstPlayer();
+
+            var color = _playOrder[_currentTurnIndex];
+            if (!_players[color].HasWon())
             {
-                if (_round >= MaxGameRounds)
-                {
-                    Console.WriteLine($"Simulation stopped after {MaxGameRounds} rounds (safety limit).");
-                    break;
-                }
-
-                _round++;
-                _sections.BeginSection($"Round {_round} — turns, mystery cell, and board status");
-
-                foreach (var color in _playOrder)
-                {
-                    if (_players[color].HasWon()) continue;
-                    ExecutePlayerTurn(_players[color]);
-                }
-
-                foreach (var p in _players.Values)
-                    p.UpdateEffectsEndOfRound();
-
-                if (_board.UpdateMysteryCell(_players, out int? spawned) && spawned.HasValue)
-                    _logger.LogMysterySpawn(spawned.Value, 4);
-
-                PrintRoundStatus();
-
-                foreach (var color in _playOrder)
-                    RegisterFinishIfNeeded(_players[color]);
-
-                if (_finishCount >= 4)
-                    break;
-
-                _sections.WaitForContinue($"round {_round + 1}");
+                ExecutePlayerTurn(_players[color]);
+                RegisterFinishIfNeeded(_players[color]);
             }
 
-            _sections.BeginSection("Final Results — placements and winner messages");
-            LogFinalStandingsIfComplete();
-            _sections.WaitForContinue("exit");
-            Console.WriteLine("Simulation complete.");
+            _currentTurnIndex++;
+            if (_currentTurnIndex >= _playOrder.Count)
+            {
+                _currentTurnIndex = 0;
+                EndRound();
+            }
+
+            if (_finishCount >= 4)
+            {
+                LogFinalStandingsIfComplete();
+                return false;
+            }
+
+            return true;
+        }
+
+        private int _currentTurnIndex = 0;
+
+        private void EndRound()
+        {
+            _round++;
+            foreach (var p in _players.Values)
+                p.UpdateEffectsEndOfRound();
+
+            if (_board.UpdateMysteryCell(_players, out int? spawned) && spawned.HasValue)
+                _logger.LogMysterySpawn(spawned.Value, 4);
+
+            PrintRoundStatus();
         }
 
         private void RegisterFinishIfNeeded(IPlayer player)

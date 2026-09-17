@@ -9,13 +9,13 @@ if exist "%GUI_EXE%" (
 )
 
 if exist "%~dp0dotnet\dotnet.exe" (
-	dotnet "%~dp0LudoGame.Gui\LudoGame.Gui.csproj"
+	"%~dp0dotnet\dotnet.exe" run --project "%~dp0LudoGame.Gui\LudoGame.Gui.csproj"
 	exit /b 0
 )
 
 where dotnet >nul 2>nul
 if not errorlevel 1 (
-	dotnet "%~dp0LudoGame.Gui\LudoGame.Gui.csproj"
+	dotnet run --project "%~dp0LudoGame.Gui\LudoGame.Gui.csproj"
 	exit /b 0
 )
 

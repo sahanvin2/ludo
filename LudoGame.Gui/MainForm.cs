@@ -1,17 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using LudoGame;
+using Microsoft.AspNetCore.SignalR.Client;
 using GameColor = LudoGame.Color;
 
 namespace LudoGame.Gui
 {
     internal sealed class MainForm : Form
     {
-        private readonly GuiGameLogger _logger = new();
+        private readonly SnapshotGameLogger _logger = new();
         private readonly Dictionary<GameColor, Label> _playerSummary = new();
         private readonly Dictionary<GameColor, Label> _playerPieces = new();
         private readonly Dictionary<GameColor, Label> _playerPlacements = new();
@@ -28,12 +30,14 @@ namespace LudoGame.Gui
         private GameSnapshot _lastSnapshot = new();
         private int _lastLogLineCount;
         private bool _gameRunning;
+        private HubConnection? _hubConnection;
 
         public MainForm()
         {
             Text = "LUDO-T Arena";
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(1280, 820);
+            Size = new Size(1280, 780);
+            MinimumSize = new Size(960, 600);
             BackColor = System.Drawing.Color.FromArgb(12, 14, 20);
             Font = new Font("Segoe UI", 9f);
 
@@ -43,6 +47,17 @@ namespace LudoGame.Gui
             _logger.DelayMilliseconds = 12;
 
             ApplySnapshot(_logger.GetSnapshot());
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            try
+            {
+                BringToFront();
+                Activate();
+            }
+            catch { }
         }
 
         private void InitializeLayout()
@@ -180,10 +195,17 @@ namespace LudoGame.Gui
             split.Dock = DockStyle.Fill;
             split.Orientation = Orientation.Vertical;
             split.BackColor = BackColor;
-            split.Width = 1200; // ensure enough width before setting sizes
-            split.Panel1MinSize = 560;
-            split.Panel2MinSize = 340;
-            split.SplitterDistance = 760;
+            split.Width = 1200;
+            split.Panel1MinSize = 300;
+            split.Panel2MinSize = 280;
+
+            try
+            {
+                int desired = (int)(split.Width * 0.62f);
+                int max = Math.Max(split.Panel1MinSize, split.Width - split.Panel2MinSize);
+                split.SplitterDistance = Math.Clamp(desired, split.Panel1MinSize, max);
+            }
+            catch { }
 
             split.Panel1.Padding = new Padding(0, 0, 10, 0);
             split.Panel2.Padding = new Padding(10, 0, 0, 0);
@@ -356,6 +378,13 @@ namespace LudoGame.Gui
 
         private async Task StartGameAsync()
         {
+            if (_hubConnection != null && _hubConnection.State == HubConnectionState.Connected)
+            {
+                // If already connected, we just trigger PlayTurn
+                await _hubConnection.InvokeAsync("PlayTurn");
+                return;
+            }
+
             if (_gameRunning)
                 return;
 
@@ -363,23 +392,30 @@ namespace LudoGame.Gui
             _startButton.Enabled = false;
             _resetButton.Enabled = false;
             _logger.Reset();
-            _logger.MarkRunning();
+            _logger.MarkRunning("Connecting to Server...");
 
             try
             {
-                await Task.Run(() =>
-                {
-                    var game = new LudoGameController(
-                        logger: _logger,
-                        sectionPresenter: new NullSectionPresenter(),
-                        observers: Array.Empty<IGameObserver>());
-                    game.StartGame();
-                });
+                _hubConnection = new HubConnectionBuilder()
+                    .WithUrl("http://localhost:5000/ludohub")
+                    .WithAutomaticReconnect()
+                    .Build();
+
+                _hubConnection.On<GameSnapshot>("UpdateState", OnSnapshotChanged);
+                
+                await _hubConnection.StartAsync();
+                await _hubConnection.InvokeAsync("StartGame");
+                
+                // Change button purpose to Play Next Turn
+                _startButton.Text = "Play Next Turn";
+            }
+            catch (Exception ex)
+            {
+                _logger.MarkComplete($"Failed to connect to server: {ex.Message}");
+                _gameRunning = false;
             }
             finally
             {
-                _logger.MarkComplete();
-                _gameRunning = false;
                 if (!IsDisposed)
                 {
                     BeginInvoke(new Action(() =>

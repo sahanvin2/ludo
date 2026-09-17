@@ -82,9 +82,12 @@ namespace LudoGame
                 return GameConstants.HomeStraightLength - piece.HomeStraightPosition;
             if (!piece.IsInStandardPath()) return int.MaxValue / 2;
             int approach = GameConstants.ApproachCells[piece.Color];
+            int distToApproach;
             if (piece.MovementDirection == Direction.Clockwise)
-                return (approach - piece.Position + GameConstants.BoardSize) % GameConstants.BoardSize;
-            return (piece.Position - approach + GameConstants.BoardSize) % GameConstants.BoardSize;
+                distToApproach = (approach - piece.Position + GameConstants.BoardSize) % GameConstants.BoardSize;
+            else
+                distToApproach = (piece.Position - approach + GameConstants.BoardSize) % GameConstants.BoardSize;
+            return distToApproach + GameConstants.HomeStraightLength;
         }
 
         /// <summary>T-4: block moves in direction of piece farthest from home when directions differ.</summary>
